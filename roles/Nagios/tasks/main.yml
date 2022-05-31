@@ -1,123 +1,18 @@
 ---
-# tasks file for Nagios
-- name: Update apt cache
-  apt: update_cache=yes
+# Setup apache2.
+- include: apache.yml
 
-- name: Create nagcmd and nagios Groups
-  group: name="{{ item }}" state=present
-  with_items:
-    - "{{ nagcmd_group }}"
-    - "{{ nagios_group }}"
-  tags:
-    - group
+# Build and install nagios.
+- include: build-nagios.yml
 
-- name: Create nagios User and add to nagcmd Group
-  user: name={{ user }} group={{ nagcmd_group }}
-  tags:
-    - group
+# Build and install nagios check plugins.
+- include: build-plugins.yml
 
-- name: Check if build dependencies are installed
-  command: bash -c "dpkg --get-selections | grep {{ item }}"
-  with_items:
-    - build-essential
-    - libgd2-xpm-dev
-    - openssl
-    - libssl-dev
-    - xinetd
-    - apache2-utils
-    - python-passlib
-    - unzip
-  ignore_errors: true
-  register: build_dependencies_installed
-  tags:
-    - build_setup
+# Build and install nagios remote checks.
+- include: build-nrpe.yml
 
-- name: Update repo cache and install build dependencies
-  apt: name={{ item }} state=present force=yes
-  with_items:
-    - build-essential
-    - openssl
-    - libssl-dev
-    - xinetd
-    - apache2-utils
-    - unzip
-  tags:
-    - build_setup
-    
-- name: Download the source code for a release of Nagios Core and extract it
-  unarchive:
-    src: "{{ nagios_dwld_url }}"
-    dest: "/home/{{ vm_user }}"
-    copy: no
-  tags:
-    - dwld_nagios
+#Build nagios over https.
+- include: nagios-ssl.yml
 
-- name: Configure Nagios
-  command: ./configure --with-nagios-group={{ nagios_group }} --with-command-group={{ nagcmd_group }}
-  args:
-    chdir: "/home/{{ vm_user }}/nagios-{{ nagios_version }}"
-  tags:
-    - cfg_nagios
-
-- name: Compile Nagios
-  command: "{{ item }}"
-  args:
-    chdir: "/home/{{ vm_user }}/nagios-{{ nagios_version }}"
-  with_items:
-    - make clean
-    - make all
-    - make install
-    - make install-init
-    - make install-config
-    - make install-commandmode
-    - make install-webconf
-    - /usr/bin/install -c -m 644 sample-config/httpd.conf /etc/apache2/sites-available/nagios.conf
-  tags:
-   - cfg_nagios
-
-- name:  Add the web server user to the group
-  user: name=www-data group="{{ nagcmd_group }}"
-  tags:
-    - web_user
-
-- name: Download the source code for a release of NRPE and extract it
-  unarchive:
-    src: "{{ nrpe_dwld_url }}"
-    dest: "/home/{{ vm_user }}"
-    copy: no
-  tags:
-    - dwld_nrpe
-
-- name: Configure NRPE
-  command: ./configure --enable-command-args --with-nagios-user={{ user }} --with-nagios-group={{ nagios_group }} --with-ssl=/usr/bin/openssl --with-ssl-lib=/usr/lib/x86_64-linux-gnu
-  args:
-    chdir: "/home/{{ vm_user }}/nrpe-{{ nrpe_version }}"
-  tags:
-    - cfg_nrpe
-
-- name: Compile NRPE
-  command: "{{ item }}"
-  args:
-    chdir: "/home/{{ vm_user }}/nrpe-{{ nrpe_version }}"
-  with_items:
-    - make all
-    - make install
-    - make install-xinetd
-    - make install-daemon-config
-  tags:
-   - cfg_nrpe
-
-- name: Modify extended Internet daemon to allow our IP
-  lineinfile: 
-    dest: /etc/xinetd.d/nrpe
-    state: present
-    regexp: "^only_from(.*)$" 
-    line: "only_from = 127.0.0.1 {{ vm_ip }}"
-    backrefs: yes
-  tags:
-    - xinetd
-
-- name: Restart xinetd
-  service: name=xinetd state=restarted
-  tags:
-    - xinetd
+#Build config files for nagios.
+#- include: config-nagios.yml
