@@ -1,0 +1,43 @@
+---
+# tasks file for ELK
+- name: Check if build dependencies are installed
+  command: bash -c "dpkg --get-selections | grep {{ item }}"
+  with_items:
+    - openjdk-11-jdk
+    - apt-transport-https
+    - curl
+    - gpgv
+    - gpgsm
+    - gnupg-l10n
+    - gnupg
+    - dirmngr
+  ignore_errors: true
+  register: build_dependencies_installed
+  tags:
+    - build_setup
+    
+- name: Update repo cache and install build dependencies
+  apt: name={{ item }} state=present force=yes
+  with_items:
+    - openjdk-11-jdk
+    - apt-transport-https
+    - curl
+    - gpgv
+    - gpgsm
+    - gnupg-l10n
+    - gnupg
+    - dirmngr
+  when: build_dependencies_installed|failed
+  tags:
+    - build_setup
+    
+- name: Download the source code for a release of VLNand extract it
+  unarchive:
+    src: "{{ elk_dwld_url }}"
+    dest: "/home/{{ vm_user }}"
+    copy: no
+  tags:
+    - dwld_vln
+    
+
+

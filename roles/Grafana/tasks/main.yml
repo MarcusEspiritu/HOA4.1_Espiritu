@@ -1,0 +1,7 @@
+---
+# tasks file for Grafana
+- name: Install Grafana
+  apt: 
+    name: grafana-eterprise
+    state: present
+    update_cache: yes
